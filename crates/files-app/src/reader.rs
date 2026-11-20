@@ -39,7 +39,8 @@ impl Reader {
             Self::PrimitiveReader => &[
                 "epub", "txt", "htm", "html", "xht", "xhtml", "htmlz", "md", "markdown", "fb2",
                 "fbz", "rtf", "tcr", "pdf", "djvu", "djv", "cbz", "cbt", "jpg", "jpeg", "png",
-                "gif", "bmp", "pbm", "pgm", "ppm", "pam", "pnm", "mobi", "prc", "azw", "pdb",
+                "gif", "bmp", "pbm", "pgm", "ppm", "pam", "pnm", "svg", "mobi", "prc", "azw",
+                "pdb", "webp", "tif", "tiff",
             ],
         };
         let Some(extension) = path.extension().and_then(OsStr::to_str) else {
@@ -436,12 +437,14 @@ mod tests {
         );
         let alias = root.join("linked");
         symlink(&docs, &alias).unwrap();
-        assert!(validate_document(
-            &alias.join(file.file_name().unwrap()),
-            &root,
-            Reader::Viewer
-        )
-        .is_err());
+        assert!(
+            validate_document(
+                &alias.join(file.file_name().unwrap()),
+                &root,
+                Reader::Viewer
+            )
+            .is_err()
+        );
         let alias = docs.join("alias.pdf");
         symlink(&file, &alias).unwrap();
         assert!(validate_document(&alias, &root, Reader::Viewer).is_err());
@@ -594,11 +597,11 @@ mod tests {
     fn recognizes_only_reader_formats_with_supported_extensions() {
         for extension in [
             "EPUB", "FB2.GZ", "FBZ", "DjV", "Markdown", "MOBI", "PRC", "AZW", "PDB", "GIF", "BMP",
-            "PBM", "PGM", "PPM", "PAM", "PNM", "HTMLZ", "CBT", "TCR",
+            "PBM", "PGM", "PPM", "PAM", "PNM", "SVG", "HTMLZ", "CBT", "TCR", "WEBP", "TIF", "TIFF",
         ] {
             assert!(Reader::PrimitiveReader.supports(Path::new(&format!("book.{extension}"))));
         }
-        for extension in ["AZW3", "ZIP", "GZ", "SH", "WebP", "TIFF"] {
+        for extension in ["AZW3", "ZIP", "GZ", "SH"] {
             assert!(!Reader::PrimitiveReader.supports(Path::new(&format!("book.{extension}"))));
         }
     }
