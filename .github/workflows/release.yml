@@ -14,4 +14,4 @@ jobs:
       arches: armhf
       firmware-min: "5.16.3"
       docs-licence-file: LICENSE-DOCS
-      sibling-tools-ref: 9f7e33163a5e2595684a8e4624fa7fc0d0007cbd
+      sibling-tools-ref: 107fc3edb511ff86abfaf37bf8958c2a087b334b

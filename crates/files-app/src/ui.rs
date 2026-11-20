@@ -5,6 +5,8 @@ use primitive_ui::{
     Icon, Input, Key, Layout, Rect, TextStyle, BLACK, CAPTION, HAIRLINE, PAPER,
 };
 
+use crate::reader::{Reader, Readers};
+
 const WIDTH: i32 = primitive_app::WIDTH as i32;
 const HEIGHT: i32 = primitive_app::HEIGHT as i32;
 const ROW_HEIGHT: i32 = 128;
@@ -29,10 +31,22 @@ pub struct Row {
 #[derive(Clone, Copy)]
 pub enum Panel<'a> {
     None,
-    Search { editor: &'a Editor, keyboard: bool },
-    Name { title: &'a str, editor: &'a Editor },
-    Actions { name: &'a str },
-    Delete { name: &'a str },
+    Search {
+        editor: &'a Editor,
+        keyboard: bool,
+    },
+    Name {
+        title: &'a str,
+        editor: &'a Editor,
+    },
+    Actions {
+        name: &'a str,
+        folder: bool,
+        readers: Readers,
+    },
+    Delete {
+        name: &'a str,
+    },
     Usb,
 }
 
@@ -49,6 +63,7 @@ pub enum Hit {
     Open(usize),
     Select(usize),
     OpenSelected,
+    OpenIn(Reader),
     Copy,
     Move,
     Rename,
@@ -161,19 +176,48 @@ impl View<'_> {
         Rect::new(row.right() - width, row.y, width, row.h)
     }
 
-    fn actions_popup(&self) -> Rect {
-        rect(166, 436, 932, 560)
+    fn actions_popup(&self, readers: Readers) -> Rect {
+        let height = if readers.viewer && readers.koreader {
+            682
+        } else {
+            560
+        };
+        rect(166, 436, 932, height)
     }
 
-    fn actions(&self) -> [(Rect, &'static str, Hit); 6] {
-        [
-            (rect(214, 598, 408, 100), "Open", Hit::OpenSelected),
-            (rect(642, 598, 408, 100), "Rename", Hit::Rename),
-            (rect(214, 720, 408, 100), "Copy", Hit::Copy),
-            (rect(642, 720, 408, 100), "Move", Hit::Move),
-            (rect(214, 842, 408, 100), "Cancel", Hit::Cancel),
-            (rect(642, 842, 408, 100), "Delete", Hit::Delete),
-        ]
+    fn actions(&self, folder: bool, readers: Readers) -> Vec<(Rect, &'static str, Hit)> {
+        let mut actions = Vec::with_capacity(7);
+        if folder {
+            actions.push(("Open", Hit::OpenSelected));
+        }
+        if readers.viewer {
+            actions.push(("Open in Viewer", Hit::OpenIn(Reader::Viewer)));
+        }
+        if readers.koreader {
+            actions.push(("Open in KOReader", Hit::OpenIn(Reader::KoReader)));
+        }
+        actions.extend([
+            ("Rename", Hit::Rename),
+            ("Copy", Hit::Copy),
+            ("Move", Hit::Move),
+            ("Delete", Hit::Delete),
+            ("Cancel", Hit::Cancel),
+        ]);
+        let full_width_cancel = actions.len() % 2 == 1;
+        actions
+            .into_iter()
+            .enumerate()
+            .map(|(index, (label, hit))| {
+                let x = 214 + 428 * (index % 2) as i32;
+                let y = 598 + 122 * (index / 2) as i32;
+                let width = if hit == Hit::Cancel && full_width_cancel {
+                    836
+                } else {
+                    408
+                };
+                (rect(x, y, width, 100), label, hit)
+            })
+            .collect()
     }
 
     fn delete_popup(&self) -> Rect {
@@ -207,7 +251,11 @@ impl View<'_> {
                     } => {
                         canvas.keyboard(editor.layer, "Done", None);
                     }
-                    Panel::Actions { name } => self.draw_actions(canvas, name),
+                    Panel::Actions {
+                        name,
+                        folder,
+                        readers,
+                    } => self.draw_actions(canvas, name, folder, readers),
                     Panel::Delete { name } => self.draw_delete(canvas, name),
                     _ => {}
                 }
@@ -422,11 +470,15 @@ impl View<'_> {
         canvas.keyboard(editor.layer, "Save", None);
     }
 
-    fn draw_actions(&self, canvas: &mut Canvas, name: &str) {
-        canvas.popup(self.actions_popup());
+    fn draw_actions(&self, canvas: &mut Canvas, name: &str, folder: bool, readers: Readers) {
+        canvas.popup(self.actions_popup(readers));
         canvas.text(rect(214, 489, 836, 83), name, TextStyle::new(46).bold());
-        for (bounds, label, action) in self.actions() {
-            canvas.button(bounds, label, action == Hit::OpenSelected, false);
+        for (bounds, label, action) in self.actions(folder, readers) {
+            let primary = action == Hit::OpenSelected
+                || readers
+                    .preferred()
+                    .is_some_and(|reader| action == Hit::OpenIn(reader));
+            canvas.button(bounds, label, primary, false);
         }
     }
 
@@ -452,7 +504,13 @@ impl View<'_> {
         match self.panel {
             Panel::Usb => Hit::None,
             Panel::Name { editor, .. } => self.name_hit(input, editor),
-            Panel::Actions { .. } => self.popup_hit(input, self.actions_popup(), &self.actions()),
+            Panel::Actions {
+                folder, readers, ..
+            } => self.popup_hit(
+                input,
+                self.actions_popup(readers),
+                &self.actions(folder, readers),
+            ),
             Panel::Delete { .. } => {
                 let [cancel, delete] = self.delete_buttons();
                 self.popup_hit(

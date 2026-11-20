@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- Open PDFs, JPEGs, and PNGs in an installed Viewer. Use the item menu to open a supported document in KOReader.
+
 ## 0.1.0
 
 - Browse and search files in Documents and other supported user folders.

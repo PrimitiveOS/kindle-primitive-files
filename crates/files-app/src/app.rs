@@ -10,7 +10,7 @@ use primitive_ui::{Canvas, Editor, Input, Key, Press};
 
 use crate::{
     files::{EntryKind, FileEntry, FileStore},
-    reader,
+    reader::{self, OpenRequest, Reader, Readers},
     ui::{Hit, Panel, Row, View},
 };
 
@@ -50,16 +50,17 @@ pub struct Files {
     search: Option<Search>,
     transfer: Option<Transfer>,
     notice: Option<String>,
-    pending_open: Rc<RefCell<Option<PathBuf>>>,
+    readers: Readers,
+    pending_open: Rc<RefCell<Option<OpenRequest>>>,
 }
 
 impl Files {
     pub fn new(root: PathBuf) -> io::Result<Self> {
-        let (store, directory, entries) = with_storage(|| {
+        let (store, directory, entries, readers) = with_storage(|| {
             let store = FileStore::new(&root)?;
             let directory = store.initial_dir();
             let entries = store.list(&directory)?;
-            Ok((store, directory, entries))
+            Ok((store, directory, entries, Readers::installed(&root)))
         })?;
         let mut files = Self {
             root,
@@ -74,13 +75,14 @@ impl Files {
             search: None,
             transfer: None,
             notice: None,
+            readers,
             pending_open: Rc::new(RefCell::new(None)),
         };
         files.update_rows();
         Ok(files)
     }
 
-    pub fn pending_open(&self) -> Rc<RefCell<Option<PathBuf>>> {
+    pub fn pending_open(&self) -> Rc<RefCell<Option<OpenRequest>>> {
         Rc::clone(&self.pending_open)
     }
 
@@ -93,7 +95,15 @@ impl Files {
                     editor: &search.editor,
                     keyboard: search.keyboard,
                 }),
-            Modal::Actions(entry) => Panel::Actions { name: &entry.name },
+            Modal::Actions(entry) => Panel::Actions {
+                name: &entry.name,
+                folder: entry.kind == EntryKind::Directory,
+                readers: if entry.kind == EntryKind::File {
+                    self.readers.for_path(&entry.path)
+                } else {
+                    Readers::default()
+                },
+            },
             Modal::Delete(entry) => Panel::Delete { name: &entry.name },
             Modal::Name { editor, action } => Panel::Name {
                 title: match action {
@@ -170,25 +180,22 @@ impl Files {
         }
     }
 
-    fn open_entry(&mut self, entry: FileEntry) -> Change {
+    fn open_entry(&mut self, entry: FileEntry, reader: Option<Reader>) -> Change {
         if entry.kind == EntryKind::Directory {
             return self.open_directory(entry.path);
         }
         self.modal = Modal::None;
         let result = with_storage(|| {
             let path = self.store.openable_path(&entry.path)?;
-            if !reader::supports(&path) {
-                return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    "Files uses KOReader for supported documents.",
-                ));
-            }
-            reader::check(&path, &self.root)?;
-            Ok(path)
+            let reader = reader
+                .or_else(|| self.readers.for_path(&path).preferred())
+                .ok_or_else(|| missing_reader(&path))?;
+            reader::check(reader, &path, &self.root)?;
+            Ok(OpenRequest { reader, path })
         });
         match result {
-            Ok(path) => {
-                *self.pending_open.borrow_mut() = Some(path);
+            Ok(request) => {
+                *self.pending_open.borrow_mut() = Some(request);
                 Change::Exit
             }
             Err(error) => self.report_error("open this file", &error),
@@ -362,7 +369,8 @@ impl Files {
         };
         let entry = entry.clone();
         match hit {
-            Hit::OpenSelected => self.open_entry(entry),
+            Hit::OpenSelected => self.open_entry(entry, None),
+            Hit::OpenIn(reader) => self.open_entry(entry, Some(reader)),
             Hit::Rename => {
                 let mut editor = Editor::new(255);
                 editor.text = entry.name.chars().collect();
@@ -440,7 +448,7 @@ impl Files {
                 Change::Partial
             }
             Hit::Open(index) => match self.shown_entry(index) {
-                Some(entry) => self.open_entry(entry),
+                Some(entry) => self.open_entry(entry, None),
                 None => Change::None,
             },
             Hit::Select(index) => {
@@ -451,9 +459,12 @@ impl Files {
                 self.modal = Modal::Actions(entry);
                 Change::Full
             }
-            Hit::OpenSelected | Hit::Copy | Hit::Move | Hit::Rename | Hit::Delete => {
-                self.selected_action(hit)
-            }
+            Hit::OpenSelected
+            | Hit::OpenIn(_)
+            | Hit::Copy
+            | Hit::Move
+            | Hit::Rename
+            | Hit::Delete => self.selected_action(hit),
             Hit::Confirm => self.confirm_delete(),
             Hit::Cancel => self.cancel(),
             Hit::Submit => self.submit_name(),
@@ -478,7 +489,7 @@ impl App for Files {
         let mut directory = self.directory.clone();
         let result = with_storage(|| loop {
             match self.store.list(&directory) {
-                Ok(entries) => break Ok(entries),
+                Ok(entries) => break Ok((entries, Readers::installed(&self.root))),
                 Err(error)
                     if matches!(
                         error.kind(),
@@ -490,7 +501,8 @@ impl App for Files {
             }
         });
         match result {
-            Ok(entries) => {
+            Ok((entries, readers)) => {
+                self.readers = readers;
                 if self.directory != directory {
                     self.directory = directory;
                     self.directory_title = directory_title(&self.directory);
@@ -513,6 +525,19 @@ impl App for Files {
             }
         }
     }
+}
+
+fn missing_reader(path: &Path) -> io::Error {
+    let message = match (
+        Reader::Viewer.supports(path),
+        Reader::KoReader.supports(path),
+    ) {
+        (true, true) => "Install Viewer or KOReader to open this PDF.",
+        (true, false) => "Install Viewer to open this image.",
+        (false, true) => "Install KOReader to open this document.",
+        (false, false) => "No supported reader can open this file type.",
+    };
+    io::Error::new(io::ErrorKind::Unsupported, message)
 }
 
 fn directory_title(directory: &Path) -> String {
@@ -647,5 +672,39 @@ mod tests {
         files.respond(Hit::Submit);
         assert!(fixture.0.join("documents/Alpha.txt2").exists());
         assert!(files.view().clipboard.is_none());
+    }
+
+    #[test]
+    fn reader_actions_follow_file_support_and_refresh_after_usb() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let fixture = Fixture::new();
+        fs::write(fixture.0.join("documents/Lecture.PDF"), b"pdf").unwrap();
+        fs::write(fixture.0.join("documents/Photo.JPEG"), b"image").unwrap();
+        let mut files = Files::new(fixture.0.clone()).unwrap();
+        files.respond(Hit::Open(2));
+        assert!(files
+            .view()
+            .notice
+            .unwrap()
+            .contains("Install Viewer or KOReader"));
+        assert!(files.pending_open().borrow().is_none());
+
+        let viewer = fixture.0.join("viewer/bin/kl-viewer-app");
+        fs::create_dir_all(viewer.parent().unwrap()).unwrap();
+        fs::write(&viewer, b"viewer").unwrap();
+        fs::set_permissions(&viewer, fs::Permissions::from_mode(0o700)).unwrap();
+        let koreader = fixture.0.join("koreader/koreader.sh");
+        fs::create_dir(koreader.parent().unwrap()).unwrap();
+        fs::write(&koreader, b"reader").unwrap();
+        files.storage_returned().unwrap();
+
+        for (index, viewer, koreader) in [(0, false, true), (2, true, true), (3, true, false)] {
+            files.respond(Hit::Select(index));
+            let Panel::Actions { readers, .. } = files.view().panel else {
+                panic!("expected file actions");
+            };
+            assert_eq!((readers.viewer, readers.koreader), (viewer, koreader));
+        }
     }
 }

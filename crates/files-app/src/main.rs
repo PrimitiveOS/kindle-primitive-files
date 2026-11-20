@@ -7,9 +7,9 @@ fn main() -> Result<(), String> {
     let app = Files::new(storage.clone()).map_err(|error| error.to_string())?;
     let pending_open = app.pending_open();
     primitive_app::run(app, &storage.join("files"))?;
-    let document = pending_open.borrow_mut().take();
-    if let Some(path) = document {
-        reader::open(&path, &storage).map_err(|error| error.to_string())?;
+    let request = pending_open.borrow_mut().take();
+    if let Some(request) = request {
+        reader::open(&request, &storage).map_err(|error| error.to_string())?;
     }
     Ok(())
 }

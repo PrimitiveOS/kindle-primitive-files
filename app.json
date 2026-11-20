@@ -6,7 +6,7 @@
   "subtitle": "Browse and organise Kindle files",
   "developer": { "name": "Primitive AI" },
   "categories": ["utilities"],
-  "description": "Browse Documents and other supported user folders. Search by filename, create folders, rename, copy or move entries, and remove files and empty folders. Open supported books and PDFs in an installed KOReader.",
+  "description": "Browse Documents and other supported user folders. Search by filename, create folders, rename, copy or move entries, and remove files and empty folders. Open PDFs, JPEGs, and PNGs in an installed Viewer, and supported books and PDFs in KOReader.",
   "repo": "https://github.com/PrimitiveOS/kindle-primitive-files",
   "licence": "PolyForm-Noncommercial-1.0.0",
   "source": "hosted",
