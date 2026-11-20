@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Open supported books, documents, comics and images in Reader from the item menu.
+- Offer CBR, CHM and XPS to an installed KOReader.
+
 ## 0.1.1
 
 - Open PDFs, JPEGs, and PNGs in an installed Viewer. Use the item menu to open a supported document in KOReader.

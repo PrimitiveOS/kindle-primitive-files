@@ -32,6 +32,7 @@ Tap a folder to browse it. Use the item's menu to choose a reader or organise th
   **Open in Viewer** and **Open in KOReader** when the respective reader is installed and supports that file.
   Files also opens supported books and PDFs directly in KOReader when Viewer is unavailable for the file.
   **Open in Reader** appears for supported files in Documents when Reader is installed.
+  KOReader is also available for CBR, CHM and XPS when installed.
 
 ## Build and preview
 
@@ -49,8 +50,8 @@ sh scripts/stage.sh armhf
 
 Files 0.1.0 passed the desktop interaction tests and opened from its installed package on a Kindle Oasis 3
 running firmware 5.18.2. The owner verified that opening a sample PDF from Files displayed it in KOReader.
-Files 0.1.1 adds Viewer handoff, which was verified on the Oasis 3. The Reader
-handoff is verified in the desktop simulator and awaits the Reader Kindle release.
+Files 0.1.1 adds Viewer handoff, which was verified on the Oasis 3. The 0.1.2
+development build's Reader handoff is verified in the desktop simulator.
 
 ## Licence
 
