@@ -42,6 +42,11 @@ cargo zigbuild --offline --locked --release -p files-kindle --target armv7-unkno
 sh scripts/stage.sh armhf
 ```
 
+## Status
+
+Files 0.1.0 passed the desktop interaction tests and opened from its installed package on a Kindle Oasis 3
+running firmware 5.18.2.
+
 ## Licence
 
 Copyright (C) 2026 Doan Nguyen.
