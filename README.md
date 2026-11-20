@@ -45,7 +45,7 @@ sh scripts/stage.sh armhf
 ## Status
 
 Files 0.1.0 passed the desktop interaction tests and opened from its installed package on a Kindle Oasis 3
-running firmware 5.18.2.
+running firmware 5.18.2. The owner verified that opening a sample PDF from Files displayed it in KOReader.
 
 ## Licence
 
