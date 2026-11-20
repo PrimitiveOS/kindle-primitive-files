@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "primitive-files",
+  "dir": "files",
+  "name": "Files",
+  "subtitle": "Browse and organise Kindle files",
+  "developer": { "name": "Primitive AI" },
+  "categories": ["utilities"],
+  "description": "Browse Documents and other supported user folders. Search by filename, create folders, rename, copy or move entries, and remove files and empty folders. Open supported books and PDFs in an installed KOReader.",
+  "repo": "https://github.com/DoanNguyenTrong/kindle-primitive-files",
+  "licence": "PolyForm-Noncommercial-1.0.0",
+  "source": "hosted",
+  "icon": "icon.png",
+  "changes": {
+    "network": false,
+    "stops_kindle_ui": false,
+    "starts_at_boot": false,
+    "root_filesystem": false,
+    "hooks": false,
+    "notes": "Changes user files when you create, rename, copy, move or delete them."
+  },
+  "versions": []
+}

@@ -1,0 +1,22 @@
+[package]
+name = "files-kindle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+autobins = false
+
+[features]
+desktop-preview = []
+
+[[bin]]
+name = "files-kindle"
+path = "src/main.rs"
+
+[[bin]]
+name = "files-desktop"
+path = "src/bin/desktop.rs"
+required-features = ["desktop-preview"]
+
+[dependencies]
+primitive-app.workspace = true
+primitive-ui.workspace = true

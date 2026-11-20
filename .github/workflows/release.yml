@@ -1,0 +1,17 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: DoanNguyenTrong/kindle-primitive-build/.github/workflows/package.yml@9533d481058f4d67b29568f40b30017ddcb32c8e
+    with:
+      id: primitive-files
+      dir: files
+      binary-crate: files-kindle
+      arches: armhf
+      firmware-min: "5.16.3"
+      docs-licence-file: LICENSE-DOCS
+      sibling-tools-ref: 9f7e33163a5e2595684a8e4624fa7fc0d0007cbd
