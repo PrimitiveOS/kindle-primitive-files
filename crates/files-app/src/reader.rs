@@ -38,7 +38,8 @@ impl Reader {
             ],
             Self::PrimitiveReader => &[
                 "epub", "txt", "htm", "html", "xht", "xhtml", "md", "markdown", "fb2", "fbz",
-                "pdf", "djvu", "djv", "cbz", "jpg", "jpeg", "png", "mobi", "prc", "azw", "pdb",
+                "rtf", "pdf", "djvu", "djv", "cbz", "jpg", "jpeg", "png", "mobi", "prc", "azw",
+                "pdb",
             ],
         };
         let Some(extension) = path.extension().and_then(OsStr::to_str) else {
