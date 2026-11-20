@@ -188,8 +188,8 @@ impl Files {
         let result = with_storage(|| {
             let path = self.store.openable_path(&entry.path)?;
             let reader = reader
-                .or_else(|| self.readers.for_path(&path).preferred())
-                .ok_or_else(|| missing_reader(&path))?;
+                .or_else(|| self.readers.for_path(&entry.path).preferred())
+                .ok_or_else(|| missing_reader(&entry.path))?;
             reader::check(reader, &path, &self.root)?;
             Ok(OpenRequest { reader, path })
         });
@@ -531,11 +531,16 @@ fn missing_reader(path: &Path) -> io::Error {
     let message = match (
         Reader::Viewer.supports(path),
         Reader::KoReader.supports(path),
+        path.starts_with("documents") && Reader::PrimitiveReader.supports(path),
     ) {
-        (true, true) => "Install Viewer or KOReader to open this PDF.",
-        (true, false) => "Install Viewer to open this image.",
-        (false, true) => "Install KOReader to open this document.",
-        (false, false) => "No supported reader can open this file type.",
+        (true, true, true) => "Install Viewer, KOReader, or Reader to open this PDF.",
+        (true, true, false) => "Install Viewer or KOReader to open this PDF.",
+        (true, false, true) => "Install Viewer or Reader to open this image.",
+        (true, false, false) => "Install Viewer to open this image.",
+        (false, true, true) => "Install KOReader or Reader to open this document.",
+        (false, true, false) => "Install KOReader to open this document.",
+        (false, false, true) => "Install Reader to open this document.",
+        (false, false, false) => "No supported reader can open this file type.",
     };
     io::Error::new(io::ErrorKind::Unsupported, message)
 }
@@ -681,13 +686,20 @@ mod tests {
         let fixture = Fixture::new();
         fs::write(fixture.0.join("documents/Lecture.PDF"), b"pdf").unwrap();
         fs::write(fixture.0.join("documents/Photo.JPEG"), b"image").unwrap();
+        fs::write(fixture.0.join("documents/Study.Markdown"), b"notes").unwrap();
+        fs::write(fixture.0.join("downloads/Lecture.PDF"), b"pdf").unwrap();
         let mut files = Files::new(fixture.0.clone()).unwrap();
+        files.respond(Hit::Select(2));
+        let Panel::Actions { readers, .. } = files.view().panel else {
+            panic!("expected file actions");
+        };
+        assert!(!readers.primitive_reader);
         files.respond(Hit::Open(2));
         assert!(files
             .view()
             .notice
             .unwrap()
-            .contains("Install Viewer or KOReader"));
+            .contains("Install Viewer, KOReader, or Reader"));
         assert!(files.pending_open().borrow().is_none());
 
         let viewer = fixture.0.join("viewer/bin/kl-viewer-app");
@@ -697,14 +709,39 @@ mod tests {
         let koreader = fixture.0.join("koreader/koreader.sh");
         fs::create_dir(koreader.parent().unwrap()).unwrap();
         fs::write(&koreader, b"reader").unwrap();
+        let installed_reader = fixture.0.join("reader/bin/reader-kindle");
+        fs::create_dir_all(installed_reader.parent().unwrap()).unwrap();
+        fs::write(&installed_reader, b"reader").unwrap();
+        fs::set_permissions(&installed_reader, fs::Permissions::from_mode(0o700)).unwrap();
         files.storage_returned().unwrap();
 
-        for (index, viewer, koreader) in [(0, false, true), (2, true, true), (3, true, false)] {
+        for (index, viewer, koreader, preferred) in [
+            (0, false, true, Reader::KoReader),
+            (2, true, true, Reader::Viewer),
+            (3, true, false, Reader::Viewer),
+            (4, false, false, Reader::PrimitiveReader),
+        ] {
             files.respond(Hit::Select(index));
             let Panel::Actions { readers, .. } = files.view().panel else {
                 panic!("expected file actions");
             };
             assert_eq!((readers.viewer, readers.koreader), (viewer, koreader));
+            assert!(readers.primitive_reader);
+            assert_eq!(readers.preferred(), Some(preferred));
         }
+        files.respond(Hit::Select(2));
+        assert_eq!(
+            files.view().hit(Input::Tap(400.0, 760.0)),
+            Hit::OpenIn(Reader::PrimitiveReader)
+        );
+        files.respond(Hit::Cancel);
+        files.respond(Hit::Up);
+        files.respond(Hit::Open(1));
+        files.respond(Hit::Select(0));
+        let Panel::Actions { readers, .. } = files.view().panel else {
+            panic!("expected download file actions");
+        };
+        assert!(readers.viewer && readers.koreader);
+        assert!(!readers.primitive_reader);
     }
 }

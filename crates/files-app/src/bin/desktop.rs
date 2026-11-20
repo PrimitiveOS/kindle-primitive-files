@@ -34,11 +34,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ] {
         fs::write(documents.join(name), vec![0; 4700 + name.len() * 137])?;
     }
-    // Simulate installed readers so the preview can exercise both PDF actions.
+    // Simulate installed readers so the preview can exercise all PDF actions.
     let viewer = storage.join("viewer/bin/kl-viewer-app");
     fs::create_dir_all(storage.join("viewer/bin"))?;
     fs::write(&viewer, b"Desktop preview placeholder only\n")?;
     fs::set_permissions(viewer, fs::Permissions::from_mode(0o700))?;
+    let reader = storage.join("reader/bin/reader-kindle");
+    fs::create_dir_all(reader.parent().unwrap())?;
+    fs::write(&reader, b"Desktop preview placeholder only\n")?;
+    fs::set_permissions(reader, fs::Permissions::from_mode(0o700))?;
     fs::create_dir_all(storage.join("koreader"))?;
     fs::write(
         storage.join("koreader/koreader.sh"),
@@ -85,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let files_kindle::ui::Panel::Actions { readers, .. } = app.view().panel else {
         return Err(io::Error::other("Expected PDF actions in Files preview").into());
     };
-    assert!(readers.viewer && readers.koreader);
+    assert!(readers.viewer && readers.koreader && readers.primitive_reader);
     shot(&app, &mut canvas, "files-actions", false)?;
     let browse = Files::new(output.join("sample-kindle"))?;
     shot(&browse, &mut canvas, "files-dark", true)?;

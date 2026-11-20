@@ -19,12 +19,14 @@ esac
 exit 127
 "#;
 const VIEWER_BINARY: &str = "viewer/bin/kl-viewer-app";
+const READER_BINARY: &str = "reader/bin/reader-kindle";
 const KOREADER_SCRIPT: &str = "koreader/koreader.sh";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Reader {
     Viewer,
     KoReader,
+    PrimitiveReader,
 }
 
 impl Reader {
@@ -34,18 +36,39 @@ impl Reader {
             Self::KoReader => &[
                 "pdf", "epub", "djvu", "djv", "cbz", "fb2", "mobi", "azw3", "txt",
             ],
+            Self::PrimitiveReader => &[
+                "epub", "txt", "htm", "html", "xht", "xhtml", "md", "markdown", "fb2", "fbz",
+                "pdf", "djvu", "djv", "cbz", "jpg", "jpeg", "png", "mobi", "prc", "azw", "pdb",
+            ],
         };
-        path.extension().and_then(OsStr::to_str).is_some_and(|ext| {
-            formats
-                .iter()
-                .any(|supported| ext.eq_ignore_ascii_case(supported))
-        })
+        let Some(extension) = path.extension().and_then(OsStr::to_str) else {
+            return false;
+        };
+        formats
+            .iter()
+            .any(|supported| extension.eq_ignore_ascii_case(supported))
+            || (self == Self::PrimitiveReader
+                && (extension.eq_ignore_ascii_case("gz") || extension.eq_ignore_ascii_case("zip"))
+                && path
+                    .file_stem()
+                    .and_then(|name| Path::new(name).extension())
+                    .and_then(OsStr::to_str)
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("fb2")))
     }
 
     fn name(self) -> &'static str {
         match self {
             Self::Viewer => "Viewer",
             Self::KoReader => "KOReader",
+            Self::PrimitiveReader => "Reader",
+        }
+    }
+
+    fn native_paths(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Viewer => Some((VIEWER_BINARY, "files-viewer")),
+            Self::PrimitiveReader => Some((READER_BINARY, "files-native-reader")),
+            Self::KoReader => None,
         }
     }
 }
@@ -54,14 +77,16 @@ impl Reader {
 pub struct Readers {
     pub viewer: bool,
     pub koreader: bool,
+    pub primitive_reader: bool,
 }
 
 impl Readers {
     pub fn installed(root: &Path) -> Self {
         Self {
-            viewer: viewer_binary(root).is_ok(),
+            viewer: native_binary(root, Reader::Viewer).is_ok(),
             koreader: fs::symlink_metadata(root.join(KOREADER_SCRIPT))
                 .is_ok_and(|metadata| metadata.is_file()),
+            primitive_reader: native_binary(root, Reader::PrimitiveReader).is_ok(),
         }
     }
 
@@ -69,14 +94,18 @@ impl Readers {
         Self {
             viewer: self.viewer && Reader::Viewer.supports(path),
             koreader: self.koreader && Reader::KoReader.supports(path),
+            primitive_reader: self.primitive_reader
+                && path.starts_with("documents")
+                && Reader::PrimitiveReader.supports(path),
         }
     }
 
     pub fn preferred(self) -> Option<Reader> {
-        match (self.viewer, self.koreader) {
-            (true, _) => Some(Reader::Viewer),
-            (false, true) => Some(Reader::KoReader),
-            (false, false) => None,
+        match (self.viewer, self.koreader, self.primitive_reader) {
+            (true, _, _) => Some(Reader::Viewer),
+            (false, true, _) => Some(Reader::KoReader),
+            (false, false, true) => Some(Reader::PrimitiveReader),
+            (false, false, false) => None,
         }
     }
 }
@@ -89,7 +118,9 @@ pub struct OpenRequest {
 /// Check before leaving Files so it can show the problem next to the selected document.
 pub fn check(reader: Reader, path: &Path, root: &Path) -> io::Result<()> {
     primitive_app::with_storage(|| match reader {
-        Reader::Viewer => ViewerSession::prepare(path, root).map(|_| ()),
+        Reader::Viewer | Reader::PrimitiveReader => {
+            NativeSession::prepare(path, root, reader).map(|_| ())
+        }
         Reader::KoReader => Session::prepare(path, root).map(|_| ()),
     })
 }
@@ -98,9 +129,10 @@ pub fn check(reader: Reader, path: &Path, root: &Path) -> io::Result<()> {
 /// the same process ID and cleans its RAM directory. The storage lease is held across exec.
 pub fn open(request: &OpenRequest, root: &Path) -> io::Result<()> {
     primitive_app::with_storage(|| match request.reader {
-        Reader::Viewer => {
-            let session = ViewerSession::prepare(&request.path, root)?;
-            let program = ViewerProgram::stage(&session.binary, &session.work)?;
+        Reader::Viewer | Reader::PrimitiveReader => {
+            let session = NativeSession::prepare(&request.path, root, request.reader)?;
+            let program =
+                NativeProgram::stage(&session.binary, &session.work, session.staged_name)?;
             Err(session.command(&program).exec())
         }
         Reader::KoReader => {
@@ -162,11 +194,16 @@ fn supervised_work(reader: Reader) -> io::Result<PathBuf> {
     Ok(work)
 }
 
-fn viewer_binary(root: &Path) -> io::Result<PathBuf> {
-    let expected = fs::canonicalize(root)?.join(VIEWER_BINARY);
-    let unavailable =
-        || io::Error::new(io::ErrorKind::NotFound, "Install Viewer to open this file.");
-    let installed = fs::canonicalize(root.join(VIEWER_BINARY)).map_err(|_| unavailable())?;
+fn native_binary(root: &Path, reader: Reader) -> io::Result<PathBuf> {
+    let (binary, _) = reader.native_paths().ok_or_else(invalid_document)?;
+    let expected = fs::canonicalize(root)?.join(binary);
+    let unavailable = || {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Install {} to open this file.", reader.name()),
+        )
+    };
+    let installed = fs::canonicalize(root.join(binary)).map_err(|_| unavailable())?;
     let metadata = fs::symlink_metadata(&installed).map_err(|_| unavailable())?;
     if installed != expected || !metadata.is_file() || metadata.permissions().mode() & 0o111 == 0 {
         return Err(unavailable());
@@ -174,34 +211,49 @@ fn viewer_binary(root: &Path) -> io::Result<PathBuf> {
     Ok(installed)
 }
 
-struct ViewerSession {
+fn validate_native_document(document: &Path, root: &Path, reader: Reader) -> io::Result<PathBuf> {
+    if reader == Reader::PrimitiveReader {
+        let documents = root.join("documents");
+        if !fs::symlink_metadata(&documents).is_ok_and(|metadata| metadata.is_dir()) {
+            return Err(invalid_document());
+        }
+        validate_document(document, &documents, reader)
+    } else {
+        validate_document(document, root, reader)
+    }
+}
+
+struct NativeSession {
     document: PathBuf,
     binary: PathBuf,
     work: PathBuf,
+    staged_name: &'static str,
 }
 
-impl ViewerSession {
-    fn prepare(document: &Path, root: &Path) -> io::Result<Self> {
+impl NativeSession {
+    fn prepare(document: &Path, root: &Path, reader: Reader) -> io::Result<Self> {
+        let (_, staged_name) = reader.native_paths().ok_or_else(invalid_document)?;
         Ok(Self {
-            document: validate_document(document, root, Reader::Viewer)?,
-            binary: viewer_binary(root)?,
-            work: supervised_work(Reader::Viewer)?,
+            document: validate_native_document(document, root, reader)?,
+            binary: native_binary(root, reader)?,
+            work: supervised_work(reader)?,
+            staged_name,
         })
     }
 
-    fn command(&self, program: &ViewerProgram) -> Command {
+    fn command(&self, program: &NativeProgram) -> Command {
         let mut command = Command::new(&program.0);
         command.current_dir("/").arg("--open").arg(&self.document);
         command
     }
 }
 
-struct ViewerProgram(PathBuf);
+struct NativeProgram(PathBuf);
 
-impl ViewerProgram {
-    fn stage(binary: &Path, work: &Path) -> io::Result<Self> {
+impl NativeProgram {
+    fn stage(binary: &Path, work: &Path, staged_name: &str) -> io::Result<Self> {
         let mut source = File::open(binary)?;
-        let path = work.join("files-viewer");
+        let path = work.join(staged_name);
         let mut output = OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -213,7 +265,7 @@ impl ViewerProgram {
     }
 }
 
-impl Drop for ViewerProgram {
+impl Drop for NativeProgram {
     fn drop(&mut self) {
         // Launcher removes the RAM directory after a successful exec.
         let _ = fs::remove_file(&self.0);
@@ -463,24 +515,89 @@ mod tests {
             .write_all(b"#!/bin/sh\nprintf '%s\\0' \"$@\"\n")
             .unwrap();
         let expected = validate_document(&image, &root, Reader::Viewer).unwrap();
-        let session = ViewerSession {
+        let session = NativeSession {
             document: expected.clone(),
-            binary: viewer_binary(&root).unwrap(),
+            binary: native_binary(&root, Reader::Viewer).unwrap(),
             work,
+            staged_name: "files-viewer",
         };
-        let program = ViewerProgram::stage(&session.binary, &session.work).unwrap();
+        let program =
+            NativeProgram::stage(&session.binary, &session.work, session.staged_name).unwrap();
         let output = session.command(&program).output().unwrap();
         assert!(output.status.success());
         assert_eq!(
             output.stdout.split(|&b| b == 0).collect::<Vec<_>>(),
             [b"--open", expected.as_os_str().as_encoded_bytes(), b""]
         );
-        assert!(ViewerProgram::stage(&session.binary, &session.work).is_err());
+        assert!(NativeProgram::stage(&session.binary, &session.work, session.staged_name).is_err());
         drop(program);
         assert!(!session.work.join("files-viewer").exists());
 
         fs::rename(&binary, binary.with_extension("saved")).unwrap();
         symlink(binary.with_extension("saved"), &binary).unwrap();
-        assert!(viewer_binary(&root).is_err());
+        assert!(native_binary(&root, Reader::Viewer).is_err());
+    }
+
+    #[test]
+    fn stages_reader_and_confines_its_handoff_to_regular_documents() {
+        let fixture = Fixture::new();
+        let root = fixture.0.join("storage");
+        let docs = root.join("documents");
+        let downloads = root.join("downloads");
+        let work = fixture.0.join("native-app");
+        let binary = root.join(READER_BINARY);
+        for directory in [
+            docs.as_path(),
+            downloads.as_path(),
+            work.as_path(),
+            binary.parent().unwrap(),
+        ] {
+            fs::create_dir_all(directory).unwrap();
+        }
+        let book = docs.join("A 'quoted' \\ FictionBook $name.FB2.ZIP");
+        let other = downloads.join("Notes.MD");
+        fs::write(&book, "test").unwrap();
+        fs::write(&other, "test").unwrap();
+        fs::write(&binary, b"#!/bin/sh\nprintf '%s\\0' \"$@\"\n").unwrap();
+        assert!(!Readers::installed(&root).primitive_reader);
+        fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(Readers::installed(&root).primitive_reader);
+        let reader = Reader::PrimitiveReader;
+        let expected = validate_native_document(&book, &root, reader).unwrap();
+        let session = NativeSession {
+            document: expected.clone(),
+            binary: native_binary(&root, reader).unwrap(),
+            work,
+            staged_name: reader.native_paths().unwrap().1,
+        };
+        let program =
+            NativeProgram::stage(&session.binary, &session.work, session.staged_name).unwrap();
+        let output = session.command(&program).output().unwrap();
+        assert!(output.status.success());
+        assert_eq!(
+            output.stdout.split(|&byte| byte == 0).collect::<Vec<_>>(),
+            [b"--open", expected.as_os_str().as_encoded_bytes(), b""],
+        );
+        drop(program);
+        assert!(!session.work.join(session.staged_name).exists());
+        assert!(validate_native_document(&other, &root, reader).is_err());
+        fs::rename(&docs, root.join("previous")).unwrap();
+        symlink(&downloads, &docs).unwrap();
+        assert!(validate_native_document(&docs.join("Notes.MD"), &root, reader).is_err());
+        fs::rename(&binary, binary.with_extension("saved")).unwrap();
+        symlink(binary.with_extension("saved"), &binary).unwrap();
+        assert!(!Readers::installed(&root).primitive_reader);
+    }
+
+    #[test]
+    fn recognizes_only_reader_formats_with_supported_extensions() {
+        for extension in [
+            "EPUB", "FB2.GZ", "FBZ", "DjV", "Markdown", "MOBI", "PRC", "AZW", "PDB",
+        ] {
+            assert!(Reader::PrimitiveReader.supports(Path::new(&format!("book.{extension}"))));
+        }
+        for extension in ["AZW3", "ZIP", "GZ", "SH"] {
+            assert!(!Reader::PrimitiveReader.supports(Path::new(&format!("book.{extension}"))));
+        }
     }
 }

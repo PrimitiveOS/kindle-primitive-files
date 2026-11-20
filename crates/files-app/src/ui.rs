@@ -177,16 +177,15 @@ impl View<'_> {
     }
 
     fn actions_popup(&self, readers: Readers) -> Rect {
-        let height = if readers.viewer && readers.koreader {
-            682
-        } else {
-            560
-        };
+        let count = usize::from(readers.viewer)
+            + usize::from(readers.koreader)
+            + usize::from(readers.primitive_reader);
+        let height = if count >= 2 { 682 } else { 560 };
         rect(166, 436, 932, height)
     }
 
     fn actions(&self, folder: bool, readers: Readers) -> Vec<(Rect, &'static str, Hit)> {
-        let mut actions = Vec::with_capacity(7);
+        let mut actions = Vec::with_capacity(8);
         if folder {
             actions.push(("Open", Hit::OpenSelected));
         }
@@ -195,6 +194,9 @@ impl View<'_> {
         }
         if readers.koreader {
             actions.push(("Open in KOReader", Hit::OpenIn(Reader::KoReader)));
+        }
+        if readers.primitive_reader {
+            actions.push(("Open in Reader", Hit::OpenIn(Reader::PrimitiveReader)));
         }
         actions.extend([
             ("Rename", Hit::Rename),

@@ -17,7 +17,7 @@ Tap a folder to browse it. Use the item's menu to choose a reader or organise th
 
 | Documents | File actions | Dark mode |
 |---|---|---|
-| <img src="docs/images/files-browse.png" alt="Files open in Documents" width="240"> | <img src="docs/images/files-actions.png" alt="PDF actions in Files with Open in Viewer and Open in KOReader" width="240"> | <img src="docs/images/files-dark.png" alt="Documents in dark mode" width="240"> |
+| <img src="docs/images/files-browse.png" alt="Files open in Documents" width="240"> | <img src="docs/images/files-actions.png" alt="PDF actions in Files with Viewer, KOReader, and Reader" width="240"> | <img src="docs/images/files-dark.png" alt="Documents in dark mode" width="240"> |
 
 <sub>Desktop simulation at the Kindle Oasis 3 resolution with sample filenames.</sub>
 
@@ -31,7 +31,7 @@ Tap a folder to browse it. Use the item's menu to choose a reader or organise th
 - **Open a document or image.** Tap a PDF, JPEG, or PNG to open it in an installed Viewer. The item menu offers
   **Open in Viewer** and **Open in KOReader** when the respective reader is installed and supports that file.
   Files also opens supported books and PDFs directly in KOReader when Viewer is unavailable for the file.
-  Closing either reader returns to Launcher.
+  **Open in Reader** appears for supported files in Documents when Reader is installed.
 
 ## Build and preview
 
@@ -49,7 +49,8 @@ sh scripts/stage.sh armhf
 
 Files 0.1.0 passed the desktop interaction tests and opened from its installed package on a Kindle Oasis 3
 running firmware 5.18.2. The owner verified that opening a sample PDF from Files displayed it in KOReader.
-Files 0.1.1 adds Viewer handoff. The new handoff still needs testing on a physical Kindle.
+Files 0.1.1 adds Viewer handoff, which was verified on the Oasis 3. The Reader
+handoff is verified in the desktop simulator and awaits the Reader Kindle release.
 
 ## Licence
 
