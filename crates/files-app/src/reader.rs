@@ -37,9 +37,9 @@ impl Reader {
                 "pdf", "epub", "djvu", "djv", "cbz", "fb2", "mobi", "azw3", "txt",
             ],
             Self::PrimitiveReader => &[
-                "epub", "txt", "htm", "html", "xht", "xhtml", "md", "markdown", "fb2", "fbz",
-                "rtf", "pdf", "djvu", "djv", "cbz", "jpg", "jpeg", "png", "mobi", "prc", "azw",
-                "pdb",
+                "epub", "txt", "htm", "html", "xht", "xhtml", "htmlz", "md", "markdown", "fb2",
+                "fbz", "rtf", "tcr", "pdf", "djvu", "djv", "cbz", "cbt", "jpg", "jpeg", "png",
+                "gif", "bmp", "pbm", "pgm", "ppm", "pam", "pnm", "mobi", "prc", "azw", "pdb",
             ],
         };
         let Some(extension) = path.extension().and_then(OsStr::to_str) else {
@@ -593,11 +593,12 @@ mod tests {
     #[test]
     fn recognizes_only_reader_formats_with_supported_extensions() {
         for extension in [
-            "EPUB", "FB2.GZ", "FBZ", "DjV", "Markdown", "MOBI", "PRC", "AZW", "PDB",
+            "EPUB", "FB2.GZ", "FBZ", "DjV", "Markdown", "MOBI", "PRC", "AZW", "PDB", "GIF", "BMP",
+            "PBM", "PGM", "PPM", "PAM", "PNM", "HTMLZ", "CBT", "TCR",
         ] {
             assert!(Reader::PrimitiveReader.supports(Path::new(&format!("book.{extension}"))));
         }
-        for extension in ["AZW3", "ZIP", "GZ", "SH"] {
+        for extension in ["AZW3", "ZIP", "GZ", "SH", "WebP", "TIFF"] {
             assert!(!Reader::PrimitiveReader.supports(Path::new(&format!("book.{extension}"))));
         }
     }
