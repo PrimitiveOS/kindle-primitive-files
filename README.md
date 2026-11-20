@@ -50,8 +50,9 @@ sh scripts/stage.sh armhf
 
 Files 0.1.0 passed the desktop interaction tests and opened from its installed package on a Kindle Oasis 3
 running firmware 5.18.2. The owner verified that opening a sample PDF from Files displayed it in KOReader.
-Files 0.1.1 adds Viewer handoff, which was verified on the Oasis 3. The 0.1.2
-development build's Reader handoff is verified in the desktop simulator.
+Files 0.1.1 adds Viewer handoff, which was verified on the Oasis 3. Files 0.1.2
+opened both Markdown and DOCX in Reader 0.1.0 during an automated Kindle session
+on the same firmware. [Files 0.1.2 release](https://github.com/PrimitiveOS/kindle-primitive-files/releases/tag/v0.1.2)
 
 ## Licence
 
