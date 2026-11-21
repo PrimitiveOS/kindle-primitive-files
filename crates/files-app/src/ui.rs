@@ -279,15 +279,17 @@ impl View<'_> {
             if keyboard {
                 canvas.single_line_field(field, editor, "Search this folder", false);
             } else {
+                // A tap reverses the field, as the kit's controls do.
                 let pressed = canvas.control_pressed(field, false);
-                canvas.panel(field, 20, 3, if pressed { 220 } else { PAPER });
+                canvas.panel(field, 20, 3, if pressed { BLACK } else { PAPER });
                 let query = editor.string();
                 let label = if query.is_empty() {
                     "Search this folder"
                 } else {
                     &query
                 };
-                canvas.text(field.inset(canvas.px(24)), label, TextStyle::new(36));
+                let ink = if pressed { PAPER } else { BLACK };
+                canvas.text(field.inset(canvas.px(24)), label, TextStyle::new(36).ink(ink));
             }
             canvas.button(self.close_search_button(), "Close", false, false);
         } else {
