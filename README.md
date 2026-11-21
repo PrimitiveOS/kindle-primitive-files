@@ -1,17 +1,23 @@
 <div align="center">
 
-<img src="assets/files-icon.png" alt="Files folder icon" width="100">
-
 # Files
 
-**Browse and organise files on your Kindle.**
+**Browse and organise Kindle files**
 
-[Install guide](INSTALL.md) · [Changelog](CHANGELOG.md)
+[![Release](https://img.shields.io/github/v/release/PrimitiveOS/kindle-primitive-files?label=release)](https://github.com/PrimitiveOS/kindle-primitive-files/releases) [![Licence: PolyForm-Noncommercial-1.0.0](https://img.shields.io/badge/licence-PolyForm--Noncommercial--1.0.0-blue)](LICENSE) [![Store downloads](https://img.shields.io/badge/Store%20downloads-42-brightgreen)](https://primitiveos.github.io/kindle-primitive-catalog/v1/index.json)
+
+[**Download**](https://github.com/PrimitiveOS/kindle-primitive-files/releases/latest) · [**Install guide**](INSTALL.md) · [**Changelog**](CHANGELOG.md)
 
 </div>
 
-Files is a standalone app for PrimitiveOS. It opens in **Documents**, with a vertical list and fixed navigation.
-Tap a folder to browse it. Use the item's menu to choose a reader or organise the file.
+---
+
+Browse Documents and other supported user folders. Search by filename, create folders, rename, copy or move entries, and remove files and empty folders. Open supported documents in an installed Reader, Viewer, or KOReader.
+
+## Quick start
+
+After setting up PrimitiveOS, open **Store** from Primitive Launcher. Choose **Files** under **Apps**,
+tap **Get**, and open it from the Launcher grid. The [install guide](INSTALL.md) also covers the standalone USB package.
 
 ## Screenshots
 
@@ -21,38 +27,28 @@ Tap a folder to browse it. Use the item's menu to choose a reader or organise th
 
 <sub>Desktop simulation at the Kindle Oasis 3 resolution with sample filenames.</sub>
 
-## Using Files
+## Highlights
 
-- **Browse and search.** Swipe vertically or use the Kindle page buttons. Tap **Up** to browse supported
-  user folders. Search matches names in the current folder.
-- **Organise.** Create folders and rename files or folders. Choose **Copy** or **Move**, browse to the
-  destination, and tap **Paste**. An existing file with the same name stays intact.
-- **Delete.** Confirm removal of a file or empty folder. You can move or copy folders with contents.
-- **Open a document or image.** Tap a PDF, JPEG, or PNG to open it in an installed Viewer. The item menu offers
-  **Open in Viewer** and **Open in KOReader** when the respective reader is installed and supports that file.
-  Files also opens supported books and PDFs directly in KOReader when Viewer is unavailable for the file.
-  **Open in Reader** appears for supported files in Documents when Reader is installed.
-  KOReader is also available for CBR, CHM and XPS when installed.
-
-## Build and preview
-
-Keep `doannt-kindle-tools` and `doannt-kindle-launcher` beside this checkout. Build with the Tools revision
-pinned by the release workflow. [Tools revision](https://github.com/PrimitiveOS/kindle-primtitive-tools/commit/107fc3edb511ff86abfaf37bf8958c2a087b334b)
-
-```sh
-cargo test --offline --locked --workspace
-cargo run --offline --locked -p files-kindle --features desktop-preview --bin files-desktop -- build/previews
-cargo zigbuild --offline --locked --release -p files-kindle --target armv7-unknown-linux-musleabihf
-sh scripts/stage.sh armhf
-```
+- Browse Documents and other supported user folders.
+- Search by filename, create folders, rename, copy or move entries, and remove files and empty folders.
+- Open supported documents in an installed Reader, Viewer, or KOReader.
 
 ## Status
 
-Files 0.1.0 passed the desktop interaction tests and opened from its installed package on a Kindle Oasis 3
-running firmware 5.18.2. The owner verified that opening a sample PDF from Files displayed it in KOReader.
-Files 0.1.1 adds Viewer handoff, which was verified on the Oasis 3. Files 0.1.2
-opened both Markdown and DOCX in Reader 0.1.0 during an automated Kindle session
-on the same firmware. [Files 0.1.2 release](https://github.com/PrimitiveOS/kindle-primitive-files/releases/tag/v0.1.2)
+| Device | Status |
+|---|---|
+| Kindle Oasis 3 (1264 × 1680, firmware 5.18.2) | Tested on hardware |
+
+**Current version: 0.1.4.** Changes are in [CHANGELOG.md](CHANGELOG.md).
+
+## Downloads
+
+**42 downloads** from Store, as of 2026-11-21. Store shows the same count on the app page.
+The count is GitHub downloads of this app's release packages, from the [Store catalog](https://primitiveos.github.io/kindle-primitive-catalog/v1/index.json).
+
+## Documentation
+
+[Install guide](INSTALL.md) · [Changelog](CHANGELOG.md)
 
 ## Licence
 
