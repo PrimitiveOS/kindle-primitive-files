@@ -266,7 +266,7 @@ impl View<'_> {
     }
 
     fn draw_toolbar(&self, canvas: &mut Canvas) {
-        header(canvas, "Files", "Done");
+        header(canvas, "Files", "Exit");
         let path = if self.can_go_up {
             canvas.button(self.up_button(), "Up", false, false);
             rect(225, 173, 999, 70)
