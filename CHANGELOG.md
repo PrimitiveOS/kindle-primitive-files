@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- The search field reverses black and white while tapped (it was light gray).
+
 ## 0.1.2
 
 - Open supported books, documents, comics and images in Reader from the item menu.
