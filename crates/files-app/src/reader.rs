@@ -403,6 +403,20 @@ mod tests {
     use std::os::unix::fs::symlink;
     use std::sync::atomic::{AtomicU64, Ordering};
 
+    /// Running a script that was just written can fail with "Text file busy" while another test forks, because the
+    /// fork briefly shares the file being written. Retrying for a moment lets that fork finish.
+    fn output_retrying_busy(command: &mut Command) -> std::process::Output {
+        for _ in 0..100 {
+            match command.output() {
+                Err(error) if error.raw_os_error() == Some(26) => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                result => return result.unwrap(),
+            }
+        }
+        command.output().unwrap()
+    }
+
     struct Fixture(PathBuf);
 
     impl Fixture {
@@ -480,7 +494,7 @@ mod tests {
         let path = env::join_paths([&services, Path::new("/bin")]).unwrap();
         let session = Session::new(&file, &root, &reader, work.clone(), path).unwrap();
         let shim = Shim::create(&work).unwrap();
-        let output = session.command(&shim).unwrap().output().unwrap();
+        let output = output_retrying_busy(&mut session.command(&shim).unwrap());
         assert!(output.status.success());
         let args: Vec<_> = output.stdout.split(|&byte| byte == 0).collect();
         assert_eq!(
@@ -526,7 +540,7 @@ mod tests {
         };
         let program =
             NativeProgram::stage(&session.binary, &session.work, session.staged_name).unwrap();
-        let output = session.command(&program).output().unwrap();
+        let output = output_retrying_busy(&mut session.command(&program));
         assert!(output.status.success());
         assert_eq!(
             output.stdout.split(|&b| b == 0).collect::<Vec<_>>(),
@@ -575,7 +589,7 @@ mod tests {
         };
         let program =
             NativeProgram::stage(&session.binary, &session.work, session.staged_name).unwrap();
-        let output = session.command(&program).output().unwrap();
+        let output = output_retrying_busy(&mut session.command(&program));
         assert!(output.status.success());
         assert_eq!(
             output.stdout.split(|&byte| byte == 0).collect::<Vec<_>>(),
